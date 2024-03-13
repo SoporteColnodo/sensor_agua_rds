@@ -120,6 +120,7 @@ if (mostrarIndicador) {
 IndicadorGeneral(latitud, longitud, tds, temperature, conductivity, pH); 
 }
           //impreson monitor serial
+          Serial.println();
           Serial.print("TDS: ");
           Serial.print(tds, 2);
           Serial.print(", Temperatura: ");

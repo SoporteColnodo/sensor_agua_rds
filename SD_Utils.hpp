@@ -44,7 +44,7 @@ bool CreateCSV(String createcsv[])
         dataFile = SD.open(createcsv[i], FILE_WRITE);
         if (dataFile)
         {
-          dataFile.println("Medida de ruido, unidad de la medida de ruido , Lat, Lng , Fecha , Hora ");
+          dataFile.println("TDS, Temperatura, Conductividad, pH, Lat, Lng , Fecha , Hora ");
           Serial.print("Archivo ");
           Serial.print(createcsv[i]);
           Serial.println(" creado.");
@@ -77,6 +77,7 @@ void calculoGeneralCSV(double lat, double lng, float tds, float temperature, flo
     dataFile = SD.open(archivo, FILE_WRITE);
     if (dataFile)
     {
+      
       dataFile.print(tds, 2);
       dataFile.print(",");
       dataFile.print(temperature, 2);
@@ -102,6 +103,7 @@ void calculoGeneralCSV(double lat, double lng, float tds, float temperature, flo
       dataFile.print(fecha.second(), DEC);
       dataFile.println();
       dataFile.close();
+      Serial.println();
       Serial.println("Información guardada en la tarjeta SD.");
       okcreacionSD();
     }
