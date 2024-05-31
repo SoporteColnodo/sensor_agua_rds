@@ -38,6 +38,8 @@ const int PH_PIN = 1;               // pin A1 sensor ph
 const int DS18B20_PIN = 33;         // pin sensor temperatura
 double latitud = 0.0;   // latitud
 double longitud = 0.0;  // longitud
+String ssid = "";
+String password = "";
 
 //pulsador
 const int pinPulsador = 2; // Pin donde está conectado el pulsador
@@ -56,17 +58,18 @@ const long interval = 5000;
 
 
 void setup() {
+RTCSet();
+SDSet();
+// Inicializar la pantalla LCD
+InicioLCD();
+lcd.init();
+lcd.backlight();
 Serial.begin(9600);
 gpsSerial.begin(9600);
 Wire.begin();
+delay(2000);
 pinMode(pinPulsador, INPUT); // Configurar el pin del pulsador como entrada
 pinMode(pinLED, OUTPUT); // Configurar el pin del LED como salida
-RTCSet();
-SDSet();
-CreateCSV(createcsv);
-
-// Inicializar la pantalla LCD
-InicioLCD();
 
 // inicializar ads
 if (!ads.begin()) {
@@ -78,11 +81,12 @@ if (!ads.begin()) {
 
 fecha = DS1307_RTC.now();
 uint32_t milisegundosEnHora = fecha.minute() * 60000 + fecha.second() * 1000;
-//maxciclos = (hora - milisegundosEnHora) / intervalSD;
+maxciclos = (hora - milisegundosEnHora) / intervalSD;
 }//fin setup
 
 
 void loop() {
+
 // Leer el estado del pulsador
   int estadoPulsador = digitalRead(pinPulsador);
  // Comprobar si el pulsador está presionado
@@ -108,6 +112,8 @@ void loop() {
   }
 
 
+ssid = LeerSSID();
+password = LeerPassword();
 unsigned long currentMillis = millis();
 
 float temperature = getTemperature(); //toma temperatura
@@ -135,86 +141,77 @@ IndicadorGeneral(latitud, longitud, tds, temperature, conductivity, pH);
           Serial.print(longitud, 6);
 
 mostrarIndicador = true;
-//Serial.println(maxciclos);
+Serial.print("Maxciclos: ");
+Serial.println(maxciclos);
 
-// Verifica si ha pasado X tiempo desde el último envío (cada hora)
-unsigned long startAPI = millis(); // Tiempo de inicio de aguaData
-
-if (currentMillis - previousMillisAPI >= intervalAPI) {
-    // Actualiza el tiempo del último envío
-    previousMillisAPI = currentMillis;
-
-unsigned long startAguaData = millis();  // Tiempo de inicio de aguaData
-    temperature = getTemperature();
-    conductivity = getConductivity(temperature);
-    pH = getPH();
-    tds = calculateTDS(temperature, conductivity, pH);
-    generarLatLng();
-
-if (latitud != 0.0 && longitud != 0.0 && tds != 0.0 && temperature != 0.0 && conductivity != 0.0 && pH != 0.0) {
-unsigned long startAPIConnect = millis();  // Tiempo de inicio de ConnectWiFi_STA
-      ConnectWiFi_STA();
-      unsigned long endAPIConnect = millis();  // Tiempo de fin de ConnectWiFi_STA
-      Serial.print("Tiempo de inicio de ConnectWiFi_STA: ");
-      Serial.println(startAPIConnect);
-      Serial.print("Tiempo de fin de ConnectWiFi_STA: ");
-      Serial.println(endAPIConnect);
-
-unsigned long startAPICreate = millis();  // Tiempo de inicio de Create
-      CrearRegistro(latitud, longitud, tds, temperature, conductivity, pH, LoginUser(User, Password));
-      unsigned long endAPICreate = millis();  // Tiempo de fin de Create
-      
-   unsigned long startAPIDisconnect = millis();  // Tiempo de inicio de WiFi.disconnect
-      WiFi.disconnect(true);
-      delay(100);
-      unsigned long endAPIDisconnect = millis();  // Tiempo de fin de WiFi.disconnect
-     
-
-} else {
-Serial.println("El GPS arroja valores 'INVALID' que no adecuados para el proceso");
-      unsigned long startAPIErrGPS = millis();  // Tiempo de inicio de errGPS
-      errGPS();
-      unsigned long endAPIErrGPS = millis();  // Tiempo de fin de errGPS
-      
-      return;
-}
-}
-
-// Verifica si ha pasado X minutos desde el último envío (cada 10 minutos)
-  unsigned long startSD = millis();  // Tiempo de inicio de calculoGeneralCSV
-  if (currentMillis - previousMillisSD >= intervalSD) {
+if (currentMillis - previousMillisSD >= intervalSD) {
+    static int contador = 0;
+    static double promediotds = 0.0;
+    static double promediotemperature = 0.0;
+    static double promedioconductivity = 0.0;
+    static double promediopH = 0.0;
+    static String nombreArchivo;
     // Actualiza el tiempo del último envío
     previousMillisSD = currentMillis;
- unsigned long startAguaDataSD = millis();  // Tiempo de inicio de aguaoData (SD)
-    temperature = getTemperature();
-    conductivity = getConductivity(temperature);
-    pH = getPH();
-    tds = calculateTDS(temperature, conductivity, pH);
-    generarLatLng();
-    unsigned long endAguaDataSD = millis();  // Tiempo de fin de aguaData (SD)
+    DateTime fecha = DS1307_RTC.now();
    
-    if (latitud != 0.0 && longitud != 0.0 && tds != 0.0 && temperature != 0.0 && conductivity != 0.0 && pH != 0.0) {
+  Serial.print("Maxciclos: ");
+  Serial.println(maxciclos);
+  if (latitud != 0.0 && longitud != 0.0 && tds != 0.0 && temperature != 0.0 && conductivity != 0.0 && pH != 0.0) { 
+  nombreArchivo = String(fecha.day()) + "-" + String(fecha.month()) + "-" + String(fecha.year()) +  "-" + String(fecha.hour()) + ".csv";
+  crearArchivo(nombreArchivo);
+  okcreacionSD();
+  guardaInformacionCSV(latitud, longitud, tds, temperature, conductivity, pH, fecha, nombreArchivo, idDispositivo);
+  mostrarIndicador = false;
+  okguardarSD();
 
-      unsigned long startSDCalc = millis();  // Tiempo de inicio de calculoGeneralCSV
-      calculoGeneralCSV(latitud, longitud, tds, temperature, conductivity, pH, fecha, createcsv[0]);
-      unsigned long endSDCalc = millis();  // Tiempo de fin de calculoGeneralCSV
-      
-    } else {
-      Serial.println("El GPS arroja valores 'INVALID' que no adecuados para el proceso");
-      unsigned long startSDErrGPS = millis();  // Tiempo de inicio de errGPS (SD)
-      errGPS();
-      unsigned long endSDErrGPS = millis();  // Tiempo de fin de errGPS (SD)
-      Serial.print("Tiempo de inicio de errGPS (SD): ");
-      Serial.println(startSDErrGPS);
-      Serial.print("Tiempo de fin de errGPS (SD): ");
-      Serial.println(endSDErrGPS);
-      
-      return;
-    }
-  }
- 
+  //temporal mayo
+  ConnectWiFi_STA(false, ssid, password);
+  CrearRegistro(latitud, longitud, tds, temperature, conductivity, pH, LoginUser(User, Password));
+  WiFi.disconnect(true);
+  delay(tmg);
+  mostrarIndicador = false;
+  okApi();//indicador
+//fin temporal mayo
 
-}// end loop
+contador++;
+if (contador >= maxciclos) {
+promediotds = calcularPromediotds(nombreArchivo,maxciclos,"pm25");// se lee archivo y calculan promedios
+promediotemperature = calcularPromeditemperature(nombreArchivo,maxciclos,"temperature");// se lee archivo y calculan promedios
+promedioconductivity = calcularPromedioconductivity(nombreArchivo,maxciclos,"conductivity");// se lee archivo y calculan promedios
+promediopH = calcularPromediopH(nombreArchivo,maxciclos,"ph");// se lee archivo y calculan promedios
+
+if(ConnectWiFi_STA(false,ssid,password)&& promediotds > 0.0 && promediotemperature > 0.0 && promedioconductivity > 0.0 && promediopH > 0.0){
+CrearRegistro(latitud, longitud, promediotds, promediotemperature, promedioconductivity, promediopH,  LoginUser(User, Password));
+WiFi.disconnect(true);
+delay(tmg);
+mostrarIndicador = false;
+okApi();//indicador
+}else{
+crearArchivo("informacion_manual_aa.csv");
+guardaInformacionCSV(latitud, longitud, promediotds, promediotemperature, promedioconductivity, promediopH, fecha, "informacion_manual_aa.csv", idDispositivo);
+delay(tmg);
+mostrarIndicador = false;
+errApi();
+}
+contador = 0;
+}
+} else {
+Serial.println("Error: GPS no proporciona valores válidos para la API.");
+mostrarIndicador = false;
+errGPS();
+currentAttempts++;
+if (currentAttempts >= maxAttempts) {
+Serial.println("Se superó el número máximo de intentos. Reiniciando.");
+reinicioESP();
+while (true) {
+ESP.restart();
+}
+}
+}
+}
+}//end loop
+
 
 void generarLatLng() {
 while (gpsSerial.available() > 0) {
@@ -226,6 +223,8 @@ while (gpsSerial.available() > 0) {
     }
   }
 }
+
+
 
 //capturar temperatura 
 float getTemperature() {
@@ -278,3 +277,5 @@ float calculateTDS(float temperature, float conductivity, float pH) {
 
   return TDS;
 }
+
+
